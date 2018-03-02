@@ -1,0 +1,503 @@
+#!/bin/bash
+IFS="
+"
+
+opt='-'
+num=1
+
+for i in $@
+do
+	if [ `echo $i | grep '-' | wc -l` -eq 1 ] && [ $i != "--help" ] && [ $i != "--version" ] 
+		then 
+			if [ `echo $opt | tr -dc "${i:1:1}" | wc -w ` -ne 1 ]
+				then opt=$opt"${i:1:1}"
+			fi
+		num=`expr $num + 1`
+	else
+		opt=$i
+		break
+	fi
+done
+
+if [ $# -eq 0 ]
+	then
+	for i in `find -type f | sed 's_.*/__' | sort | uniq -d`
+	do
+		for j in `find -name $i`					
+		do
+			echo `ls -l $j`
+		done	
+	done
+elif [ `echo $@ | grep -c "-"` -ne 1 ]
+	then
+	for i in `find $@ -type f | sed 's_.*/__' | sort | uniq -d`
+	do
+		for j in `find $@ -name $i`					
+		do
+			echo `ls -l $j`
+		done	
+	done
+else
+	case $opt in
+		--help)
+			echo -e "Usage: findnsakes [OPTION] {directories}
+Find files with the same name
+
+OPTIONS
+--help:		provides a description of the basic program options.
+--version:	indicates the version of the program.
+-t:		for each set of files with the same name, displays them sorted by date.
+-S:		for each set of files with the same name, displays them sorted by size.
+-d:  		performs sorting in descending order.
+-i:		interactive mode, for each file presents four options (c: copy d: delete, m: move; i: ignore).
+
+The options -t and -S can not be used simultaneously."
+			;;
+		--version)
+			echo "Written by Ines Almeida and Patrcia Jesus"
+			;;
+		-t)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%T@\t%p\n"| sort -n | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%T@\t%p\n" | sort -n | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			fi
+			;;
+		-S)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%s\t%p\n" | sort -n | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%s\t%p\n" | sort -n | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			fi
+			;;
+		-d)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%f\t%p\n"`
+					do
+						echo $j >> .temporary
+					done
+				done
+				for i in `sort -n -r .temporary | cut -f 2- | xargs -I{} ls -Glath --si {}`
+				do
+					echo $i
+				done
+				`rm .temporary`
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%p\t%p\n"`
+					do
+						echo $j >> .temporary
+					done
+				done
+				for i in `sort -n -r .temporary | cut -f 2- | xargs -I{} ls -Glath --si {}`
+				do
+					echo $i
+				done
+				`rm .temporary`
+			fi
+			;;
+		-i)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%p\n"`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%p\n"`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			fi
+			;;
+		-td|-dt)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%T@\t%p\n" | sort -n -r | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%T@\t%p\n" | sort -n -r | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			fi
+			;;
+		-Sd|-dS)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%s\t%p\n" | sort -n -r | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%s\t%p\n" | sort -n -r | cut -f 2-`
+					do
+						echo `ls -l $j`
+					done
+				done
+			fi
+			;;
+		-ti|-it)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%T@\t%p\n"| sort -n | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%T@\t%p\n"| sort -n | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			fi
+			;;
+		-Si|-iS)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%s\t%p\n"| sort -n | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%s\t%p\n"| sort -n | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			fi
+			;;
+		-idt|-tdi|-tid|-itd|-dit|-dti)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%T@\t%p\n"| sort -n -r | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%T@\t%p\n"| sort -n -r | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			fi
+			;;
+		-idS|-Sdi|-Sid|-iSd|-diS|-dSi)
+			if [ $# -eq `echo $@ | tr -dc '-' | wc -c` ]
+			then
+				for i in `find . -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find . -name $i -printf "%s\t%p\n"| sort -n -r | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			else
+				for i in `find ${@:num} -type f | sed 's_.*/__' | sort -n | uniq -d`
+				do
+					for j in `find ${@:num} -name $i -printf "%s\t%p\n"| sort -n -r | cut -f 2-`
+					do
+						base=`basename $j`
+						echo `ls -l $j`
+						echo "[(i)gnore, (c)opy, (m)ove, (d)elete]?"
+						read n
+						case $n in
+							d)echo 'removed' `rm $j`;;
+							m)echo 'moved' 
+								if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+								then count=`find -maxdepth 1 -name "$base*" | wc -l`
+									`mv $j ./$base".$count"`
+								else
+									`mv $j .`
+								fi;;
+							c)echo 'copied'
+							if [ `find -maxdepth 1 -name "$base*" | wc -l` -ge 1 ]
+							then count=`find -maxdepth 1 -name "$base*" | wc -l`
+								`cp $j ./$base".$count"`
+							else
+								`cp $j .`
+							fi;;
+							i)shift;;
+							*)echo 'Invalid option'
+							exit 1;;
+						esac
+					done
+				done
+			fi
+			;;
+		*)
+			echo "Wrong options"
+			;;
+	esac
+fi
